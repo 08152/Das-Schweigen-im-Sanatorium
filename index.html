@@ -1,27 +1,24 @@
 <!DOCTYPE html>
-<html lang="de">
+<html>
 <head>
 <meta charset="UTF-8">
-<title>3D World FPS GLB</title>
+<title>Infinite FPS World</title>
 
 <style>
 body{
-    margin:0;
-    overflow:hidden;
-    background:black;
+margin:0;
+overflow:hidden;
+background:black;
 }
 
-canvas{
-    display:block;
-}
-
-#info{
-    position:absolute;
-    top:20px;
-    left:20px;
-    color:white;
-    font-family:Arial;
-    z-index:5;
+#hud{
+position:absolute;
+top:15px;
+right:20px;
+color:white;
+font-family:Arial;
+font-size:18px;
+z-index:5;
 }
 </style>
 
@@ -29,76 +26,90 @@ canvas{
 
 <body>
 
-<div id="info">
-WASD = bewegen<br>
-Maus = schauen<br>
-SPACE = springen
+<div id="hud">
+X:0<br>
+Y:0<br>
+Z:0
 </div>
 
 
 <script type="module">
 
+
 import * as THREE from 
 "https://cdn.jsdelivr.net/npm/three@0.160/build/three.module.js";
 
-import {GLTFLoader} from 
+
+import {GLTFLoader}
+from
 "https://cdn.jsdelivr.net/npm/three@0.160/examples/jsm/loaders/GLTFLoader.js";
 
-import {PointerLockControls} from 
+
+import {PointerLockControls}
+from
 "https://cdn.jsdelivr.net/npm/three@0.160/examples/jsm/controls/PointerLockControls.js";
+
 
 
 // Szene
 
-const scene = new THREE.Scene();
+const scene =
+new THREE.Scene();
 
-scene.background = new THREE.Color(0x87ceeb);
+scene.background =
+new THREE.Color(0x87ceeb);
+
 
 
 // Kamera
 
-const camera = new THREE.PerspectiveCamera(
+const camera =
+new THREE.PerspectiveCamera(
 75,
-window.innerWidth/window.innerHeight,
+innerWidth/innerHeight,
 0.1,
 2000
 );
 
 
+
 // Renderer
 
-const renderer = new THREE.WebGLRenderer({
+const renderer =
+new THREE.WebGLRenderer({
 antialias:true
 });
 
 renderer.setSize(
-window.innerWidth,
-window.innerHeight
+innerWidth,
+innerHeight
 );
 
 renderer.shadowMap.enabled=true;
 
-document.body.appendChild(renderer.domElement);
+document.body.appendChild(
+renderer.domElement
+);
 
 
 
 // Licht
 
-const sun = new THREE.DirectionalLight(
+let sun =
+new THREE.DirectionalLight(
 0xffffff,
-3
+2
 );
 
 sun.position.set(
-50,
 100,
-20
+150,
+50
 );
 
 sun.castShadow=true;
 
 scene.add(sun);
-
 
 scene.add(
 new THREE.AmbientLight(
@@ -109,51 +120,8 @@ new THREE.AmbientLight(
 
 
 
-// GLB laden
 
-const loader = new GLTFLoader();
-
-
-loader.load(
-"map.glb",
-
-(gltf)=>{
-
-let map = gltf.scene;
-
-map.traverse(obj=>{
-
-if(obj.isMesh){
-
-obj.castShadow=true;
-obj.receiveShadow=true;
-
-}
-
-});
-
-
-scene.add(map);
-
-
-console.log("Map geladen");
-
-},
-
-undefined,
-
-(error)=>{
-
-console.log(error);
-
-}
-
-);
-
-
-
-
-// FPS Steuerung
+// FPS
 
 
 const controls =
@@ -164,11 +132,8 @@ document.body
 
 
 document.body.onclick=()=>{
-
 controls.lock();
-
 };
-
 
 
 scene.add(
@@ -177,114 +142,383 @@ controls.getObject()
 
 
 
+
+// =====================
+// TERRAIN SYSTEM
+// =====================
+
+
+const chunkSize=80;
+
+const renderDistance=2;
+
+
+let chunks={};
+
+
+
+function noise(x,z){
+
+return (
+Math.sin(x*0.05)
++
+Math.cos(z*0.04)
++
+Math.sin((x+z)*0.03)
+)*8;
+
+}
+
+
+
+
+function createChunk(cx,cz){
+
+
+let geo =
+new THREE.PlaneGeometry(
+chunkSize,
+chunkSize,
+32,
+32
+);
+
+
+geo.rotateX(
+-Math.PI/2
+);
+
+
+
+let pos =
+geo.attributes.position;
+
+
+
+for(
+let i=0;
+i<pos.count;
+i++
+){
+
+let x =
+pos.getX(i)+cx*chunkSize;
+
+
+let z =
+pos.getZ(i)+cz*chunkSize;
+
+
+let h =
+noise(x,z);
+
+
+pos.setY(
+i,
+h
+);
+
+}
+
+
+geo.computeVertexNormals();
+
+
+
+let mat =
+new THREE.MeshStandardMaterial({
+
+color:0x555c35,
+roughness:1
+
+});
+
+
+let mesh =
+new THREE.Mesh(
+geo,
+mat
+);
+
+
+mesh.receiveShadow=true;
+
+
+mesh.position.set(
+cx*chunkSize,
+0,
+cz*chunkSize
+);
+
+
+
+scene.add(mesh);
+
+
+
+// Bäume
+
+for(
+let i=0;i<6;i++
+){
+
+let x =
+(cx*chunkSize)
++
+(Math.random()-0.5)*chunkSize;
+
+
+let z =
+(cz*chunkSize)
++
+(Math.random()-0.5)*chunkSize;
+
+
+spawnTree(x,z);
+
+}
+
+
+
+chunks[cx+"_"+cz]=mesh;
+
+
+}
+
+
+
+
+function updateChunks(){
+
+
+let px =
+Math.floor(
+camera.position.x/chunkSize
+);
+
+
+let pz =
+Math.floor(
+camera.position.z/chunkSize
+);
+
+
+
+for(
+let x=-renderDistance;
+x<=renderDistance;
+x++
+){
+
+for(
+let z=-renderDistance;
+z<=renderDistance;
+z++
+){
+
+let id =
+(px+x)+"_"+(pz+z);
+
+
+if(!chunks[id])
+createChunk(
+px+x,
+pz+z
+);
+
+
+}
+
+}
+
+
+
+}
+
+
+
+// =====================
+// BAUM CACHE
+// =====================
+
+
+let treeModel=null;
+
+
+
+const loader =
+new GLTFLoader();
+
+
+
+loader.load(
+"baum.glb",
+(gltf)=>{
+
+treeModel =
+gltf.scene;
+
+
+treeModel.traverse(o=>{
+
+if(o.isMesh){
+
+o.castShadow=true;
+
+}
+
+});
+
+
+console.log(
+"Baum geladen einmal"
+);
+
+}
+
+);
+
+
+
+
+function spawnTree(x,z){
+
+
+if(!treeModel)
+return;
+
+
+
+let tree =
+treeModel.clone(true);
+
+
+let y =
+noise(x,z);
+
+
+tree.position.set(
+x,
+y,
+z
+);
+
+
+
+let s =
+0.8+
+Math.random()*0.7;
+
+
+tree.scale.set(
+s,s,s
+);
+
+
+
+scene.add(tree);
+
+
+}
+
+
+
+// =====================
+// Bewegung
+// =====================
+
+
 let keys={};
 
-document.addEventListener(
-"keydown",
-e=>keys[e.code]=true
-);
+
+onkeydown=e=>
+keys[e.code]=true;
 
 
-document.addEventListener(
-"keyup",
-e=>keys[e.code]=false
-);
+onkeyup=e=>
+keys[e.code]=false;
 
 
 
-// Spieler Physik
-
-
-let velocity =
-new THREE.Vector3();
-
-let canJump=false;
+let velocityY=0;
 
 
 
-function update(){
-
-let speed=0.15;
+function movement(){
 
 
-if(keys["KeyW"])
-velocity.z=-speed;
-
-else if(keys["KeyS"])
-velocity.z=speed;
-
-else
-velocity.z=0;
+let speed=0.25;
 
 
 
-if(keys["KeyA"])
-velocity.x=-speed;
-
-else if(keys["KeyD"])
-velocity.x=speed;
-
-else
-velocity.x=0;
+if(keys.KeyW)
+controls.moveForward(speed);
 
 
-
-controls.moveRight(
-velocity.x
-);
+if(keys.KeyS)
+controls.moveForward(-speed);
 
 
-controls.moveForward(
-velocity.z
-);
+if(keys.KeyA)
+controls.moveRight(-speed);
+
+
+if(keys.KeyD)
+controls.moveRight(speed);
 
 
 
-// springen
+velocityY-=0.01;
 
-if(
-keys["Space"] &&
-canJump
-){
 
-velocity.y=0.25;
+camera.position.y+=velocityY;
 
-canJump=false;
+
+
+if(camera.position.y<3){
+
+camera.position.y=3;
+
+velocityY=0;
 
 }
 
 
-velocity.y-=0.01;
+if(keys.Space){
 
-
-controls.getObject().position.y
-+=velocity.y;
-
-
-
-if(
-controls.getObject().position.y<2
-){
-
-controls.getObject().position.y=2;
-
-velocity.y=0;
-
-canJump=true;
+velocityY=0.25;
 
 }
+
 
 }
 
 
 
-// Start Position
+// Start
 
 camera.position.set(
 0,
-2,
-5
+10,
+0
 );
+
+
+
+// HUD
+
+
+function hud(){
+
+document.getElementById("hud").innerHTML=
+
+`
+X:${camera.position.x.toFixed(1)}<br>
+Y:${camera.position.y.toFixed(1)}<br>
+Z:${camera.position.z.toFixed(1)}
+`;
+
+}
 
 
 
@@ -298,7 +532,11 @@ animate
 );
 
 
-update();
+updateChunks();
+
+movement();
+
+hud();
 
 
 renderer.render(
@@ -306,33 +544,29 @@ scene,
 camera
 );
 
-}
 
+}
 
 animate();
 
 
 
-// Größe anpassen
-
-window.onresize=()=>{
+onresize=()=>{
 
 camera.aspect=
-window.innerWidth/window.innerHeight;
+innerWidth/innerHeight;
 
 camera.updateProjectionMatrix();
 
-
 renderer.setSize(
-window.innerWidth,
-window.innerHeight
+innerWidth,
+innerHeight
 );
 
 };
 
 
 </script>
-
 
 </body>
 </html>
