@@ -2,15 +2,15 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>FPS World Online</title>
+<title>FPS World</title>
 
 <style>
 body { margin:0; overflow:hidden; }
 
 #hud{
 position:absolute;
-top:15px;
-right:15px;
+top:10px;
+right:10px;
 color:white;
 font-family:Arial;
 font-size:14px;
@@ -23,7 +23,7 @@ text-align:right;
 
 <div id="hud"></div>
 
-<!-- THREE ONLINE -->
+<!-- THREE.JS -->
 <script src="https://cdn.jsdelivr.net/npm/three@0.160/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.160/examples/js/controls/PointerLockControls.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.160/examples/js/loaders/GLTFLoader.js"></script>
@@ -35,22 +35,26 @@ text-align:right;
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87ceeb);
 
-const camera = new THREE.PerspectiveCamera(75,innerWidth/innerHeight,0.1,2000);
+// LIGHT (FIX: nicht mehr schwarz)
+const sun = new THREE.DirectionalLight(0xffffff, 1.2);
+sun.position.set(100,200,100);
+scene.add(sun);
+
+const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+scene.add(ambient);
+
+// ================= CAMERA =================
+
+const camera = new THREE.PerspectiveCamera(
+75, innerWidth/innerHeight, 0.1, 2000
+);
+camera.position.y = 10;
+
+// ================= RENDERER =================
 
 const renderer = new THREE.WebGLRenderer({antialias:true});
 renderer.setSize(innerWidth,innerHeight);
 document.body.appendChild(renderer.domElement);
-
-renderer.shadowMap.enabled = true;
-
-// ================= LIGHT =================
-
-const sun = new THREE.DirectionalLight(0xffffff,1.5);
-sun.position.set(100,200,100);
-sun.castShadow = true;
-scene.add(sun);
-
-scene.add(new THREE.HemisphereLight(0xffffff,0x444444,1.2));
 
 // ================= CONTROLS =================
 
@@ -58,13 +62,13 @@ const controls = new THREE.PointerLockControls(camera,document.body);
 document.body.onclick = ()=>controls.lock();
 scene.add(controls.getObject());
 
-// ================= GRAVITY + JUMP =================
+// ================= GRAVITY =================
 
 let velocityY = 0;
 let canJump = false;
-const gravity = 0.015;
+const gravity = 0.02;
 
-// ================= KEYBOARD =================
+// ================= INPUT =================
 
 let keys={};
 onkeydown=e=>keys[e.code]=true;
@@ -94,25 +98,31 @@ pos.setY(i,height(x,z));
 
 geo.computeVertexNormals();
 
-const mat = new THREE.MeshStandardMaterial({color:0x3f8f35});
+const mat = new THREE.MeshStandardMaterial({
+color:0x3f8f35,
+roughness:1
+});
 
 const mesh = new THREE.Mesh(geo,mat);
 mesh.receiveShadow = true;
-
 mesh.position.set(cx*size,0,cz*size);
 
 scene.add(mesh);
 
 chunks[cx+"_"+cz]=mesh;
 
-// Bäume spawnen
+// Bäume verzögert spawn (FIX gegen GLB Lag)
+setTimeout(()=>{
 for(let i=0;i<6;i++){
 spawnTree(
 cx*size+(Math.random()-0.5)*size,
 cz*size+(Math.random()-0.5)*size
 );
 }
+},200);
 }
+
+// ================= CHUNKS =================
 
 function updateChunks(){
 
@@ -131,7 +141,7 @@ createChunk(cx+x,cz+z);
 }}
 }
 
-// ================= TREES =================
+// ================= TREE =================
 
 let treeModel = null;
 
@@ -159,7 +169,7 @@ t.scale.set(2,2,2);
 scene.add(t);
 }
 
-// ================= MOVEMENT =================
+// ================= MOVE =================
 
 function move(){
 
@@ -170,17 +180,19 @@ if(keys.KeyS)controls.moveForward(-speed);
 if(keys.KeyA)controls.moveRight(-speed);
 if(keys.KeyD)controls.moveRight(speed);
 
-// Jump + Gravity
+// Jump
 if(keys.Space && canJump){
-velocityY = 0.25;
+velocityY = 0.3;
 canJump = false;
 }
 
 camera.position.y -= velocityY;
 velocityY -= gravity;
 
-if(camera.position.y < height(camera.position.x,camera.position.z)+8){
-camera.position.y = height(camera.position.x,camera.position.z)+8;
+let ground = height(camera.position.x,camera.position.z) + 8;
+
+if(camera.position.y < ground){
+camera.position.y = ground;
 velocityY = 0;
 canJump = true;
 }
@@ -208,6 +220,8 @@ renderer.render(scene,camera);
 }
 
 animate();
+
+// ================= RESIZE =================
 
 window.onresize=()=>{
 camera.aspect=innerWidth/innerHeight;
