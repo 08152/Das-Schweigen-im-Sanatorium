@@ -1,60 +1,54 @@
 <!DOCTYPE html>
 <html>
 <head>
+
 <meta charset="UTF-8">
 <title>Infinite FPS World</title>
 
 <style>
+
 body{
 margin:0;
 overflow:hidden;
-background:black;
 }
 
 #hud{
 position:absolute;
-top:15px;
+top:20px;
 right:20px;
 color:white;
 font-family:Arial;
 font-size:18px;
-z-index:5;
 }
+
 </style>
 
 </head>
 
+
 <body>
 
-<div id="hud">
-X:0<br>
-Y:0<br>
-Z:0
-</div>
+
+<div id="hud"></div>
 
 
-<script type="module">
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160/build/three.min.js"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160/examples/js/controls/PointerLockControls.js"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160/examples/js/loaders/GLTFLoader.js"></script>
 
 
-import * as THREE from 
-"https://cdn.jsdelivr.net/npm/three@0.160/build/three.module.js";
 
-
-import {GLTFLoader}
-from
-"https://cdn.jsdelivr.net/npm/three@0.160/examples/jsm/loaders/GLTFLoader.js";
-
-
-import {PointerLockControls}
-from
-"https://cdn.jsdelivr.net/npm/three@0.160/examples/jsm/controls/PointerLockControls.js";
-
+<script>
 
 
 // Szene
 
 const scene =
 new THREE.Scene();
+
 
 scene.background =
 new THREE.Color(0x87ceeb);
@@ -80,12 +74,15 @@ new THREE.WebGLRenderer({
 antialias:true
 });
 
+
 renderer.setSize(
 innerWidth,
 innerHeight
 );
 
+
 renderer.shadowMap.enabled=true;
+
 
 document.body.appendChild(
 renderer.domElement
@@ -95,44 +92,49 @@ renderer.domElement
 
 // Licht
 
-let sun =
+const sun =
 new THREE.DirectionalLight(
 0xffffff,
-2
+5
 );
 
+
 sun.position.set(
+50,
 100,
-150,
-50
+20
 );
+
 
 sun.castShadow=true;
 
+
 scene.add(sun);
+
+
 
 scene.add(
 new THREE.AmbientLight(
 0xffffff,
-0.5
+2
 )
 );
 
 
 
-
 // FPS
 
-
 const controls =
-new PointerLockControls(
+new THREE.PointerLockControls(
 camera,
 document.body
 );
 
 
 document.body.onclick=()=>{
+
 controls.lock();
+
 };
 
 
@@ -142,32 +144,36 @@ controls.getObject()
 
 
 
-
-// =====================
-// TERRAIN SYSTEM
-// =====================
+camera.position.y=8;
 
 
-const chunkSize=80;
 
-const renderDistance=2;
+
+
+// =================
+// Terrain Chunks
+// =================
+
+
+const size=100;
 
 
 let chunks={};
 
 
 
-function noise(x,z){
+function terrainHeight(x,z){
 
 return (
-Math.sin(x*0.05)
-+
-Math.cos(z*0.04)
-+
-Math.sin((x+z)*0.03)
-)*8;
+
+Math.sin(x*0.05)*4+
+
+Math.cos(z*0.04)*4
+
+);
 
 }
+
 
 
 
@@ -175,13 +181,15 @@ Math.sin((x+z)*0.03)
 function createChunk(cx,cz){
 
 
+
 let geo =
 new THREE.PlaneGeometry(
-chunkSize,
-chunkSize,
-32,
-32
+size,
+size,
+40,
+40
 );
+
 
 
 geo.rotateX(
@@ -190,35 +198,33 @@ geo.rotateX(
 
 
 
-let pos =
+let p =
 geo.attributes.position;
 
 
 
 for(
-let i=0;
-i<pos.count;
-i++
+let i=0;i<p.count;i++
 ){
 
+
 let x =
-pos.getX(i)+cx*chunkSize;
+p.getX(i)+cx*size;
 
 
 let z =
-pos.getZ(i)+cz*chunkSize;
+p.getZ(i)+cz*size;
 
 
-let h =
-noise(x,z);
 
-
-pos.setY(
+p.setY(
 i,
-h
+terrainHeight(x,z)
 );
 
+
 }
+
 
 
 geo.computeVertexNormals();
@@ -228,10 +234,10 @@ geo.computeVertexNormals();
 let mat =
 new THREE.MeshStandardMaterial({
 
-color:0x555c35,
-roughness:1
+color:0x4b8b35
 
 });
+
 
 
 let mesh =
@@ -241,13 +247,11 @@ mat
 );
 
 
-mesh.receiveShadow=true;
-
 
 mesh.position.set(
-cx*chunkSize,
+cx*size,
 0,
-cz*chunkSize
+cz*size
 );
 
 
@@ -256,34 +260,12 @@ scene.add(mesh);
 
 
 
-// Bäume
-
-for(
-let i=0;i<6;i++
-){
-
-let x =
-(cx*chunkSize)
-+
-(Math.random()-0.5)*chunkSize;
-
-
-let z =
-(cz*chunkSize)
-+
-(Math.random()-0.5)*chunkSize;
-
-
-spawnTree(x,z);
-
-}
-
-
-
 chunks[cx+"_"+cz]=mesh;
 
 
+
 }
+
 
 
 
@@ -291,92 +273,98 @@ chunks[cx+"_"+cz]=mesh;
 function updateChunks(){
 
 
-let px =
+
+let cx =
 Math.floor(
-camera.position.x/chunkSize
+camera.position.x/size
 );
 
 
-let pz =
+let cz =
 Math.floor(
-camera.position.z/chunkSize
+camera.position.z/size
 );
 
 
 
 for(
-let x=-renderDistance;
-x<=renderDistance;
-x++
+let x=-2;x<=2;x++
 ){
 
 for(
-let z=-renderDistance;
-z<=renderDistance;
-z++
+let z=-2;z<=2;z++
 ){
+
 
 let id =
-(px+x)+"_"+(pz+z);
+(cx+x)+"_"+(cz+z);
 
 
-if(!chunks[id])
+
+if(!chunks[id]){
+
 createChunk(
-px+x,
-pz+z
+cx+x,
+cz+z
 );
 
+}
+
 
 }
 
 }
 
 
-
 }
 
 
 
-// =====================
-// BAUM CACHE
-// =====================
 
 
-let treeModel=null;
+
+// =================
+// Baum nur einmal laden
+// =================
+
+
+let tree=null;
 
 
 
 const loader =
-new GLTFLoader();
+new THREE.GLTFLoader();
 
 
 
 loader.load(
 "baum.glb",
-(gltf)=>{
 
-treeModel =
-gltf.scene;
+g=>{
 
 
-treeModel.traverse(o=>{
+tree=g.scene;
 
-if(o.isMesh){
 
+tree.traverse(
+o=>{
+
+if(o.isMesh)
 o.castShadow=true;
-
-}
 
 });
 
 
 console.log(
-"Baum geladen einmal"
+"Baum geladen"
 );
+
 
 }
 
 );
+
+
 
 
 
@@ -384,51 +372,39 @@ console.log(
 function spawnTree(x,z){
 
 
-if(!treeModel)
-return;
+if(!tree)return;
 
 
 
-let tree =
-treeModel.clone(true);
+let t =
+tree.clone();
 
 
-let y =
-noise(x,z);
 
-
-tree.position.set(
+t.position.set(
 x,
-y,
+terrainHeight(x,z),
 z
 );
 
 
 
-let s =
-0.8+
-Math.random()*0.7;
+scene.add(t);
 
-
-tree.scale.set(
-s,s,s
-);
-
-
-
-scene.add(tree);
 
 
 }
 
 
 
-// =====================
+
+// =================
 // Bewegung
-// =====================
+// =================
 
 
 let keys={};
+
 
 
 onkeydown=e=>
@@ -440,85 +416,34 @@ keys[e.code]=false;
 
 
 
-let velocityY=0;
+function move(){
 
 
 
-function movement(){
-
-
-let speed=0.25;
+let speed=0.3;
 
 
 
-if(keys.KeyW)
+if(keys.W)
 controls.moveForward(speed);
 
 
-if(keys.KeyS)
+if(keys.S)
 controls.moveForward(-speed);
 
 
-if(keys.KeyA)
+if(keys.A)
 controls.moveRight(-speed);
 
 
-if(keys.KeyD)
+if(keys.D)
 controls.moveRight(speed);
 
 
 
-velocityY-=0.01;
-
-
-camera.position.y+=velocityY;
-
-
-
-if(camera.position.y<3){
-
-camera.position.y=3;
-
-velocityY=0;
-
 }
 
 
-if(keys.Space){
-
-velocityY=0.25;
-
-}
-
-
-}
-
-
-
-// Start
-
-camera.position.set(
-0,
-10,
-0
-);
-
-
-
-// HUD
-
-
-function hud(){
-
-document.getElementById("hud").innerHTML=
-
-`
-X:${camera.position.x.toFixed(1)}<br>
-Y:${camera.position.y.toFixed(1)}<br>
-Z:${camera.position.z.toFixed(1)}
-`;
-
-}
 
 
 
@@ -527,16 +452,30 @@ Z:${camera.position.z.toFixed(1)}
 
 function animate(){
 
+
 requestAnimationFrame(
 animate
 );
 
 
+
 updateChunks();
 
-movement();
 
-hud();
+move();
+
+
+
+document.getElementById("hud").innerHTML=
+
+`
+X: ${camera.position.x.toFixed(0)}
+<br>
+Y: ${camera.position.y.toFixed(0)}
+<br>
+Z: ${camera.position.z.toFixed(0)}
+`;
+
 
 
 renderer.render(
@@ -545,28 +484,37 @@ camera
 );
 
 
+
 }
+
 
 animate();
 
 
 
-onresize=()=>{
+
+
+window.onresize=()=>{
 
 camera.aspect=
 innerWidth/innerHeight;
 
+
 camera.updateProjectionMatrix();
+
 
 renderer.setSize(
 innerWidth,
 innerHeight
 );
 
+
 };
 
 
+
 </script>
+
 
 </body>
 </html>
