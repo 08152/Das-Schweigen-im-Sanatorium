@@ -1,272 +1,1004 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
+
 <meta charset="UTF-8">
-<title>Infinite FPS World + Trees</title>
+<title>Infinite Green FPS World</title>
 
 <style>
-body { margin:0; overflow:hidden; }
-#overlay {
-    position:absolute;
-    width:100%; height:100%;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    background:rgba(0,0,0,0.6);
-    color:white;
-    font-family:Arial;
-    font-size:20px;
-    cursor:pointer;
+
+body{
+margin:0;
+overflow:hidden;
 }
+
+canvas{
+display:block;
+}
+
+#overlay{
+
+position:absolute;
+width:100%;
+height:100%;
+
+display:flex;
+align-items:center;
+justify-content:center;
+
+background:rgba(0,0,0,0.5);
+
+color:white;
+font-family:Arial;
+font-size:22px;
+
+cursor:pointer;
+}
+
 </style>
+
 </head>
 
+
 <body>
-<div id="overlay">Klicken zum Start (Pointer Lock)</div>
+
+
+<div id="overlay">
+Klicken zum Start
+</div>
+
+
 
 <script type="module">
 
-import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
-import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js";
 
-// ===== BASIC =====
-let scene, camera, renderer;
+import * as THREE from
+"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
 
-let move = { forward:false, back:false, left:false, right:false };
-let velocity = new THREE.Vector3();
-let canJump = false;
 
-const GRAVITY = 0.015;
-const JUMP_FORCE = 0.35;
+import {GLTFLoader} from
+"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js";
 
-let chunks = {};
-let treeChunks = {};
 
-const SIZE = 80;
-const RENDER = 2;
 
-let raycaster = new THREE.Raycaster();
-let down = new THREE.Vector3(0,-1,0);
 
-// ===== TREE MODEL =====
-let treeModel = null;
-const loader = new GLTFLoader();
 
-// baum.glb laden
-loader.load("baum.glb", (gltf)=>{
-    treeModel = gltf.scene;
-});
+let scene;
+let camera;
+let renderer;
+
+
+
+let move={
+forward:false,
+back:false,
+left:false,
+right:false
+};
+
+
+
+let velocity =
+new THREE.Vector3();
+
+
+
+let canJump=false;
+
+
+
+const GRAVITY=0.015;
+const JUMP=0.35;
+
+
+
+const SIZE=80;
+const RENDER=2;
+
+
+
+let chunks={};
+
+let treeChunks={};
+
+
+
+let treeModel=null;
+
+
+
+const loader =
+new GLTFLoader();
+
+
+
+
+
 
 init();
 animate();
 
-// ===== INIT =====
+
+
+
+
+
+
+
 function init(){
 
-    scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x6fb3d2);
 
-    camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 2000);
-    camera.position.set(0, 10, 0);
 
-    renderer = new THREE.WebGLRenderer({antialias:true});
-    renderer.setSize(innerWidth, innerHeight);
-    document.body.appendChild(renderer.domElement);
+scene =
+new THREE.Scene();
 
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1));
 
-    const overlay = document.getElementById("overlay");
-    overlay.onclick = () => document.body.requestPointerLock();
+// BLAUER HIMMEL
 
-    document.addEventListener("pointerlockchange", ()=>{
-        overlay.style.display = document.pointerLockElement ? "none" : "flex";
-    });
+scene.background =
+new THREE.Color(0x4aa3ff);
 
-    // Mouse
-    let pitch = 0;
-    let yaw = 0;
 
-    document.addEventListener("mousemove",(e)=>{
-        if(!document.pointerLockElement) return;
 
-        yaw -= e.movementX * 0.002;
-        pitch -= e.movementY * 0.002;
 
-        pitch = Math.max(-1.5, Math.min(1.5, pitch));
 
-        camera.rotation.x = pitch;
-        camera.rotation.y = yaw;
-    });
+camera =
+new THREE.PerspectiveCamera(
+75,
+innerWidth/innerHeight,
+0.1,
+2000
+);
 
-    // WASD
-    document.addEventListener("keydown",(e)=>{
-        if(e.code==="KeyW") move.forward=true;
-        if(e.code==="KeyS") move.back=true;
-        if(e.code==="KeyA") move.left=true;
-        if(e.code==="KeyD") move.right=true;
 
-        if(e.code==="Space" && canJump){
-            velocity.y = JUMP_FORCE;
-            canJump = false;
-        }
-    });
+camera.position.set(
+0,
+15,
+0
+);
 
-    document.addEventListener("keyup",(e)=>{
-        if(e.code==="KeyW") move.forward=false;
-        if(e.code==="KeyS") move.back=false;
-        if(e.code==="KeyA") move.left=false;
-        if(e.code==="KeyD") move.right=false;
-    });
 
-    window.addEventListener("resize", ()=>{
-        camera.aspect = innerWidth/innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(innerWidth, innerHeight);
-    });
+
+
+
+renderer =
+new THREE.WebGLRenderer({
+antialias:true
+});
+
+
+renderer.setSize(
+innerWidth,
+innerHeight
+);
+
+
+renderer.setPixelRatio(
+devicePixelRatio
+);
+
+
+document.body.appendChild(
+renderer.domElement
+);
+
+
+
+
+
+
+// Licht
+
+
+scene.add(
+new THREE.HemisphereLight(
+0xffffff,
+0x444444,
+1.5
+));
+
+
+
+let sun =
+new THREE.DirectionalLight(
+0xffffff,
+1
+);
+
+
+sun.position.set(
+50,
+100,
+50
+);
+
+
+scene.add(sun);
+
+
+
+
+
+
+
+// BAUM LADEN
+
+
+loader.load(
+
+"baum.glb",
+
+(gltf)=>{
+
+
+treeModel =
+gltf.scene;
+
+
+console.log(
+"baum.glb geladen"
+);
+
+
+
+// bereits vorhandene Chunks
+
+for(let key in chunks){
+
+
+let p =
+key.split(",");
+
+
+spawnTrees(
+Number(p[0]),
+Number(p[1])
+);
+
+
 }
 
-// ===== TERRAIN HEIGHT =====
+
+},
+
+
+undefined,
+
+
+(error)=>{
+
+console.log(
+"Fehler beim Baum:",
+error
+);
+
+}
+
+);
+
+
+
+
+
+
+
+
+
+// POINTER LOCK
+
+
+let overlay =
+document.getElementById(
+"overlay"
+);
+
+
+
+overlay.onclick=()=>{
+
+renderer.domElement.requestPointerLock();
+
+};
+
+
+
+document.addEventListener(
+"pointerlockchange",
+()=>{
+
+
+overlay.style.display =
+document.pointerLockElement
+?
+"none"
+:
+"flex";
+
+
+});
+
+
+
+
+
+
+
+
+
+// MOUSE
+
+
+let pitch=0;
+let yaw=0;
+
+
+
+document.addEventListener(
+"mousemove",
+(e)=>{
+
+
+if(!document.pointerLockElement)
+return;
+
+
+
+yaw -=
+e.movementX*0.002;
+
+
+pitch -=
+e.movementY*0.002;
+
+
+
+pitch =
+Math.max(
+-1.5,
+Math.min(1.5,pitch)
+);
+
+
+
+camera.rotation.x=pitch;
+camera.rotation.y=yaw;
+
+
+
+});
+
+
+
+
+
+
+
+
+
+// WASD + JUMP
+
+
+document.addEventListener(
+"keydown",
+(e)=>{
+
+
+if(e.code==="KeyW")
+move.forward=true;
+
+
+if(e.code==="KeyS")
+move.back=true;
+
+
+if(e.code==="KeyA")
+move.left=true;
+
+
+if(e.code==="KeyD")
+move.right=true;
+
+
+
+if(
+e.code==="Space"
+&&
+canJump
+){
+
+velocity.y=JUMP;
+canJump=false;
+
+}
+
+
+
+});
+
+
+
+
+
+
+
+document.addEventListener(
+"keyup",
+(e)=>{
+
+
+if(e.code==="KeyW")
+move.forward=false;
+
+
+if(e.code==="KeyS")
+move.back=false;
+
+
+if(e.code==="KeyA")
+move.left=false;
+
+
+if(e.code==="KeyD")
+move.right=false;
+
+
+});
+
+
+
+
+
+
+
+window.onresize=()=>{
+
+
+camera.aspect =
+innerWidth/innerHeight;
+
+
+camera.updateProjectionMatrix();
+
+
+renderer.setSize(
+innerWidth,
+innerHeight
+);
+
+
+};
+
+
+
+}
+
+
+
+
+
+
+
+
+
+
+
+// TERRAIN FORM
+
+
 function height(x,z){
-    return (
-        Math.sin(x*0.02)*2 +
-        Math.cos(z*0.02)*2 +
-        Math.sin((x+z)*0.01)*3
-    );
+
+
+return (
+
+Math.sin(x*0.02)*2
+
++
+
+Math.cos(z*0.02)*2
+
++
+
+Math.sin((x+z)*0.01)*3
+
+
+);
+
+
 }
 
-// ===== TREES =====
-function spawnTrees(chunkGroup, cx, cz){
 
-    if(!treeModel) return;
 
-    const key = cx+","+cz;
-    if(treeChunks[key]) return;
 
-    treeChunks[key] = true;
 
-    for(let i=0;i<5;i++){
 
-        const tree = treeModel.clone();
 
-        let x = cx * SIZE + (Math.random()-0.5)*SIZE;
-        let z = cz * SIZE + (Math.random()-0.5)*SIZE;
-        let y = height(x,z);
 
-        tree.position.set(x, y, z);
 
-        tree.scale.set(2,2,2);
 
-        scene.add(tree);
-    }
+
+// CHUNK
+
+
+function createChunk(cx,cz){
+
+
+
+let key =
+cx+","+cz;
+
+
+
+if(chunks[key])
+return;
+
+
+
+
+
+
+let geo =
+new THREE.PlaneGeometry(
+SIZE,
+SIZE,
+40,
+40
+);
+
+
+
+geo.rotateX(
+-Math.PI/2
+);
+
+
+
+let pos =
+geo.attributes.position;
+
+
+
+
+for(let i=0;i<pos.count;i++){
+
+
+
+let x =
+pos.getX(i)
++
+cx*SIZE;
+
+
+
+let z =
+pos.getZ(i)
++
+cz*SIZE;
+
+
+
+pos.setY(
+i,
+height(x,z)
+);
+
+
+
 }
 
-// ===== CHUNKS =====
-function createChunk(cx, cz){
 
-    const key = cx+","+cz;
-    if(chunks[key]) return;
 
-    const geo = new THREE.PlaneGeometry(SIZE, SIZE, 30, 30);
-    geo.rotateX(-Math.PI/2);
+geo.computeVertexNormals();
 
-    const pos = geo.attributes.position;
 
-    for(let i=0;i<pos.count;i++){
 
-        let x = pos.getX(i) + cx*SIZE;
-        let z = pos.getZ(i) + cz*SIZE;
 
-        pos.setY(i, height(x,z));
-    }
 
-    geo.computeVertexNormals();
 
-    const mat = new THREE.MeshStandardMaterial({
-        color:0x7f8c8d,
-        metalness:0.6,
-        roughness:0.4
-    });
+let mat =
+new THREE.MeshStandardMaterial({
 
-    const mesh = new THREE.Mesh(geo, mat);
+color:0x229922,
 
-    mesh.position.set(cx*SIZE,0,cz*SIZE);
+roughness:0.9
 
-    scene.add(mesh);
-    chunks[key] = mesh;
+});
 
-    // 👉 BÄUME SPAWNEN
-    spawnTrees(mesh, cx, cz);
+
+
+
+
+let terrain =
+new THREE.Mesh(
+geo,
+mat
+);
+
+
+
+terrain.position.set(
+cx*SIZE,
+0,
+cz*SIZE
+);
+
+
+
+
+scene.add(
+terrain
+);
+
+
+
+chunks[key]=terrain;
+
+
+
+
+// BÄUME
+
+spawnTrees(cx,cz);
+
+
+
 }
 
-// ===== UPDATE CHUNKS =====
+
+
+
+
+
+
+
+
+
+
+
+// BÄUME
+
+
+function spawnTrees(cx,cz){
+
+
+
+if(!treeModel)
+return;
+
+
+
+let key =
+cx+","+cz;
+
+
+
+if(treeChunks[key])
+return;
+
+
+
+treeChunks[key]=true;
+
+
+
+
+
+for(let i=0;i<5;i++){
+
+
+
+let tree =
+treeModel.clone();
+
+
+
+
+
+let x =
+cx*SIZE
++
+(Math.random()-0.5)
+*SIZE;
+
+
+
+let z =
+cz*SIZE
++
+(Math.random()-0.5)
+*SIZE;
+
+
+
+let y =
+height(x,z);
+
+
+
+
+tree.position.set(
+x,
+y,
+z
+);
+
+
+
+tree.scale.set(
+2,
+2,
+2
+);
+
+
+
+scene.add(tree);
+
+
+
+}
+
+
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+// CHUNKS LADEN
+
+
 function updateChunks(){
 
-    const cx = Math.floor(camera.position.x / SIZE);
-    const cz = Math.floor(camera.position.z / SIZE);
 
-    for(let x=cx-RENDER; x<=cx+RENDER; x++){
-        for(let z=cz-RENDER; z<=cz+RENDER; z++){
-            createChunk(x,z);
-        }
-    }
+
+let cx =
+Math.floor(
+camera.position.x/SIZE
+);
+
+
+
+let cz =
+Math.floor(
+camera.position.z/SIZE
+);
+
+
+
+
+for(
+let x=cx-RENDER;
+x<=cx+RENDER;
+x++
+){
+
+
+for(
+let z=cz-RENDER;
+z<=cz+RENDER;
+z++
+){
+
+
+createChunk(
+x,
+z
+);
+
+
 }
 
-// ===== LOOP =====
+
+
+}
+
+
+}
+
+
+
+
+
+
+
+
+
+
+
+// GAME LOOP
+
+
 function animate(){
-    requestAnimationFrame(animate);
 
-    updateChunks();
 
-    // movement
-    const speed = 0.25;
+requestAnimationFrame(
+animate
+);
 
-    let dir = new THREE.Vector3();
 
-    if(move.forward) dir.z -= 1;
-    if(move.back) dir.z += 1;
-    if(move.left) dir.x -= 1;
-    if(move.right) dir.x += 1;
 
-    dir.normalize();
+updateChunks();
 
-    let forward = new THREE.Vector3();
-    camera.getWorldDirection(forward);
-    forward.y = 0;
-    forward.normalize();
 
-    let right = new THREE.Vector3();
-    right.crossVectors(camera.up, forward).normalize();
 
-    let moveVec = new THREE.Vector3();
-    moveVec.addScaledVector(forward, -dir.z);
-    moveVec.addScaledVector(right, dir.x);
-    moveVec.multiplyScalar(speed);
 
-    camera.position.add(moveVec);
 
-    // gravity
-    velocity.y -= GRAVITY;
-    camera.position.y += velocity.y;
+// Bewegung
 
-    // ground hitbox
-    raycaster.set(camera.position, down);
 
-    let hits = raycaster.intersectObjects(Object.values(chunks));
+let dir =
+new THREE.Vector3();
 
-    if(hits.length > 0){
 
-        let ground = hits[0].point.y + 2;
 
-        if(camera.position.y < ground){
-            camera.position.y = ground;
-            velocity.y = 0;
-            canJump = true;
-        }
-    }
+if(move.forward)
+dir.z-=1;
 
-    renderer.render(scene, camera);
+
+if(move.back)
+dir.z+=1;
+
+
+if(move.left)
+dir.x-=1;
+
+
+if(move.right)
+dir.x+=1;
+
+
+
+dir.normalize();
+
+
+
+
+
+let forward =
+new THREE.Vector3();
+
+
+camera.getWorldDirection(
+forward
+);
+
+
+forward.y=0;
+
+
+forward.normalize();
+
+
+
+
+
+
+let right =
+new THREE.Vector3();
+
+
+right.crossVectors(
+camera.up,
+forward
+).normalize();
+
+
+
+
+
+
+
+let moveVec =
+new THREE.Vector3();
+
+
+
+moveVec.addScaledVector(
+forward,
+-dir.z
+);
+
+
+
+moveVec.addScaledVector(
+right,
+dir.x
+);
+
+
+
+moveVec.multiplyScalar(
+0.25
+);
+
+
+
+
+camera.position.add(
+moveVec
+);
+
+
+
+
+
+
+
+
+// GRAVITY
+
+
+velocity.y -= GRAVITY;
+
+
+camera.position.y +=
+velocity.y;
+
+
+
+
+
+
+
+// BODEN HITBOX
+
+
+let ground =
+height(
+camera.position.x,
+camera.position.z
+)
++2;
+
+
+
+
+
+if(
+camera.position.y <
+ground
+){
+
+
+camera.position.y =
+ground;
+
+
+velocity.y=0;
+
+
+canJump=true;
+
+
+
 }
+
+
+
+
+
+
+
+renderer.render(
+scene,
+camera
+);
+
+
+
+}
+
+
 
 </script>
+
 </body>
 </html>
