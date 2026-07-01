@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>3D World FPS GLB</title>
+
+<style>
+body{
+    margin:0;
+    overflow:hidden;
+    background:black;
+}
+
+canvas{
+    display:block;
+}
+
+#info{
+    position:absolute;
+    top:20px;
+    left:20px;
+    color:white;
+    font-family:Arial;
+    z-index:5;
+}
+</style>
+
+</head>
+
+<body>
+
+<div id="info">
+WASD = bewegen<br>
+Maus = schauen<br>
+SPACE = springen
+</div>
+
+
+<script type="module">
+
+import * as THREE from 
+"https://cdn.jsdelivr.net/npm/three@0.160/build/three.module.js";
+
+import {GLTFLoader} from 
+"https://cdn.jsdelivr.net/npm/three@0.160/examples/jsm/loaders/GLTFLoader.js";
+
+import {PointerLockControls} from 
+"https://cdn.jsdelivr.net/npm/three@0.160/examples/jsm/controls/PointerLockControls.js";
+
+
+// Szene
+
+const scene = new THREE.Scene();
+
+scene.background = new THREE.Color(0x87ceeb);
+
+
+// Kamera
+
+const camera = new THREE.PerspectiveCamera(
+75,
+window.innerWidth/window.innerHeight,
+0.1,
+2000
+);
+
+
+// Renderer
+
+const renderer = new THREE.WebGLRenderer({
+antialias:true
+});
+
+renderer.setSize(
+window.innerWidth,
+window.innerHeight
+);
+
+renderer.shadowMap.enabled=true;
+
+document.body.appendChild(renderer.domElement);
+
+
+
+// Licht
+
+const sun = new THREE.DirectionalLight(
+0xffffff,
+3
+);
+
+sun.position.set(
+50,
+100,
+20
+);
+
+sun.castShadow=true;
+
+scene.add(sun);
+
+
+scene.add(
+new THREE.AmbientLight(
+0xffffff,
+0.5
+)
+);
+
+
+
+// GLB laden
+
+const loader = new GLTFLoader();
+
+
+loader.load(
+"map.glb",
+
+(gltf)=>{
+
+let map = gltf.scene;
+
+map.traverse(obj=>{
+
+if(obj.isMesh){
+
+obj.castShadow=true;
+obj.receiveShadow=true;
+
+}
+
+});
+
+
+scene.add(map);
+
+
+console.log("Map geladen");
+
+},
+
+undefined,
+
+(error)=>{
+
+console.log(error);
+
+}
+
+);
+
+
+
+
+// FPS Steuerung
+
+
+const controls =
+new PointerLockControls(
+camera,
+document.body
+);
+
+
+document.body.onclick=()=>{
+
+controls.lock();
+
+};
+
+
+
+scene.add(
+controls.getObject()
+);
+
+
+
+let keys={};
+
+document.addEventListener(
+"keydown",
+e=>keys[e.code]=true
+);
+
+
+document.addEventListener(
+"keyup",
+e=>keys[e.code]=false
+);
+
+
+
+// Spieler Physik
+
+
+let velocity =
+new THREE.Vector3();
+
+let canJump=false;
+
+
+
+function update(){
+
+let speed=0.15;
+
+
+if(keys["KeyW"])
+velocity.z=-speed;
+
+else if(keys["KeyS"])
+velocity.z=speed;
+
+else
+velocity.z=0;
+
+
+
+if(keys["KeyA"])
+velocity.x=-speed;
+
+else if(keys["KeyD"])
+velocity.x=speed;
+
+else
+velocity.x=0;
+
+
+
+controls.moveRight(
+velocity.x
+);
+
+
+controls.moveForward(
+velocity.z
+);
+
+
+
+// springen
+
+if(
+keys["Space"] &&
+canJump
+){
+
+velocity.y=0.25;
+
+canJump=false;
+
+}
+
+
+velocity.y-=0.01;
+
+
+controls.getObject().position.y
++=velocity.y;
+
+
+
+if(
+controls.getObject().position.y<2
+){
+
+controls.getObject().position.y=2;
+
+velocity.y=0;
+
+canJump=true;
+
+}
+
+}
+
+
+
+// Start Position
+
+camera.position.set(
+0,
+2,
+5
+);
+
+
+
+// Loop
+
+
+function animate(){
+
+requestAnimationFrame(
+animate
+);
+
+
+update();
+
+
+renderer.render(
+scene,
+camera
+);
+
+}
+
+
+animate();
+
+
+
+// Größe anpassen
+
+window.onresize=()=>{
+
+camera.aspect=
+window.innerWidth/window.innerHeight;
+
+camera.updateProjectionMatrix();
+
+
+renderer.setSize(
+window.innerWidth,
+window.innerHeight
+);
+
+};
+
+
+</script>
+
+
+</body>
+</html>
