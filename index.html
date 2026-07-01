@@ -2,11 +2,10 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<title>Infinite Chunk FPS World</title>
+<title>Infinite FPS World + Trees</title>
 
 <style>
-body { margin:0; overflow:hidden; background:black; }
-
+body { margin:0; overflow:hidden; }
 #overlay {
     position:absolute;
     width:100%; height:100%;
@@ -23,37 +22,59 @@ body { margin:0; overflow:hidden; background:black; }
 </head>
 
 <body>
-
 <div id="overlay">Klicken zum Start (Pointer Lock)</div>
 
 <script type="module">
-import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
 
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
+import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js";
+
+// ===== BASIC =====
 let scene, camera, renderer;
+
 let move = { forward:false, back:false, left:false, right:false };
+let velocity = new THREE.Vector3();
+let canJump = false;
+
+const GRAVITY = 0.015;
+const JUMP_FORCE = 0.35;
 
 let chunks = {};
-const CHUNK_SIZE = 50;
-const RENDER_DISTANCE = 3; // wie viele chunks um dich herum
+let treeChunks = {};
+
+const SIZE = 80;
+const RENDER = 2;
+
+let raycaster = new THREE.Raycaster();
+let down = new THREE.Vector3(0,-1,0);
+
+// ===== TREE MODEL =====
+let treeModel = null;
+const loader = new GLTFLoader();
+
+// baum.glb laden
+loader.load("baum.glb", (gltf)=>{
+    treeModel = gltf.scene;
+});
 
 init();
 animate();
 
+// ===== INIT =====
 function init(){
 
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x87c95c); // grüner Himmel
+    scene.background = new THREE.Color(0x6fb3d2);
 
-    camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 2000);
-    camera.position.set(0, 5, 0);
+    camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 2000);
+    camera.position.set(0, 10, 0);
 
     renderer = new THREE.WebGLRenderer({antialias:true});
-    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setSize(innerWidth, innerHeight);
     document.body.appendChild(renderer.domElement);
 
     scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1));
 
-    // Pointer Lock
     const overlay = document.getElementById("overlay");
     overlay.onclick = () => document.body.requestPointerLock();
 
@@ -61,7 +82,7 @@ function init(){
         overlay.style.display = document.pointerLockElement ? "none" : "flex";
     });
 
-    // Maus Look
+    // Mouse
     let pitch = 0;
     let yaw = 0;
 
@@ -83,6 +104,11 @@ function init(){
         if(e.code==="KeyS") move.back=true;
         if(e.code==="KeyA") move.left=true;
         if(e.code==="KeyD") move.right=true;
+
+        if(e.code==="Space" && canJump){
+            velocity.y = JUMP_FORCE;
+            canJump = false;
+        }
     });
 
     document.addEventListener("keyup",(e)=>{
@@ -93,55 +119,94 @@ function init(){
     });
 
     window.addEventListener("resize", ()=>{
-        camera.aspect = window.innerWidth/window.innerHeight;
+        camera.aspect = innerWidth/innerHeight;
         camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setSize(innerWidth, innerHeight);
     });
 }
 
-// ===== CHUNK ERZEUGUNG =====
-function createChunk(cx, cz){
-
-    const key = cx + "," + cz;
-
-    if(chunks[key]) return;
-
-    const group = new THREE.Group();
-
-    const geo = new THREE.BoxGeometry(5, 1, 5);
-
-    for(let x=0;x<10;x++){
-        for(let z=0;z<10;z++){
-
-            let worldX = cx * CHUNK_SIZE + x * 5;
-            let worldZ = cz * CHUNK_SIZE + z * 5;
-
-            const height = Math.sin(worldX * 0.05) * Math.cos(worldZ * 0.05) * 2;
-
-            const mat = new THREE.MeshStandardMaterial({
-                color: 0x2ecc71
-            });
-
-            const block = new THREE.Mesh(geo, mat);
-            block.position.set(worldX, height, worldZ);
-
-            group.add(block);
-        }
-    }
-
-    scene.add(group);
-    chunks[key] = group;
+// ===== TERRAIN HEIGHT =====
+function height(x,z){
+    return (
+        Math.sin(x*0.02)*2 +
+        Math.cos(z*0.02)*2 +
+        Math.sin((x+z)*0.01)*3
+    );
 }
 
-// ===== CHUNK UPDATE =====
+// ===== TREES =====
+function spawnTrees(chunkGroup, cx, cz){
+
+    if(!treeModel) return;
+
+    const key = cx+","+cz;
+    if(treeChunks[key]) return;
+
+    treeChunks[key] = true;
+
+    for(let i=0;i<5;i++){
+
+        const tree = treeModel.clone();
+
+        let x = cx * SIZE + (Math.random()-0.5)*SIZE;
+        let z = cz * SIZE + (Math.random()-0.5)*SIZE;
+        let y = height(x,z);
+
+        tree.position.set(x, y, z);
+
+        tree.scale.set(2,2,2);
+
+        scene.add(tree);
+    }
+}
+
+// ===== CHUNKS =====
+function createChunk(cx, cz){
+
+    const key = cx+","+cz;
+    if(chunks[key]) return;
+
+    const geo = new THREE.PlaneGeometry(SIZE, SIZE, 30, 30);
+    geo.rotateX(-Math.PI/2);
+
+    const pos = geo.attributes.position;
+
+    for(let i=0;i<pos.count;i++){
+
+        let x = pos.getX(i) + cx*SIZE;
+        let z = pos.getZ(i) + cz*SIZE;
+
+        pos.setY(i, height(x,z));
+    }
+
+    geo.computeVertexNormals();
+
+    const mat = new THREE.MeshStandardMaterial({
+        color:0x7f8c8d,
+        metalness:0.6,
+        roughness:0.4
+    });
+
+    const mesh = new THREE.Mesh(geo, mat);
+
+    mesh.position.set(cx*SIZE,0,cz*SIZE);
+
+    scene.add(mesh);
+    chunks[key] = mesh;
+
+    // 👉 BÄUME SPAWNEN
+    spawnTrees(mesh, cx, cz);
+}
+
+// ===== UPDATE CHUNKS =====
 function updateChunks(){
 
-    const cx = Math.floor(camera.position.x / CHUNK_SIZE);
-    const cz = Math.floor(camera.position.z / CHUNK_SIZE);
+    const cx = Math.floor(camera.position.x / SIZE);
+    const cz = Math.floor(camera.position.z / SIZE);
 
-    for(let x = cx-RENDER_DISTANCE; x <= cx+RENDER_DISTANCE; x++){
-        for(let z = cz-RENDER_DISTANCE; z <= cz+RENDER_DISTANCE; z++){
-            createChunk(x, z);
+    for(let x=cx-RENDER; x<=cx+RENDER; x++){
+        for(let z=cz-RENDER; z<=cz+RENDER; z++){
+            createChunk(x,z);
         }
     }
 }
@@ -152,16 +217,17 @@ function animate(){
 
     updateChunks();
 
-    const speed = 0.4;
+    // movement
+    const speed = 0.25;
 
-    let direction = new THREE.Vector3();
+    let dir = new THREE.Vector3();
 
-    if(move.forward) direction.z -= 1;
-    if(move.back) direction.z += 1;
-    if(move.left) direction.x -= 1;
-    if(move.right) direction.x += 1;
+    if(move.forward) dir.z -= 1;
+    if(move.back) dir.z += 1;
+    if(move.left) dir.x -= 1;
+    if(move.right) dir.x += 1;
 
-    direction.normalize();
+    dir.normalize();
 
     let forward = new THREE.Vector3();
     camera.getWorldDirection(forward);
@@ -172,15 +238,35 @@ function animate(){
     right.crossVectors(camera.up, forward).normalize();
 
     let moveVec = new THREE.Vector3();
-    moveVec.addScaledVector(forward, -direction.z);
-    moveVec.addScaledVector(right, direction.x);
+    moveVec.addScaledVector(forward, -dir.z);
+    moveVec.addScaledVector(right, dir.x);
     moveVec.multiplyScalar(speed);
 
     camera.position.add(moveVec);
 
+    // gravity
+    velocity.y -= GRAVITY;
+    camera.position.y += velocity.y;
+
+    // ground hitbox
+    raycaster.set(camera.position, down);
+
+    let hits = raycaster.intersectObjects(Object.values(chunks));
+
+    if(hits.length > 0){
+
+        let ground = hits[0].point.y + 2;
+
+        if(camera.position.y < ground){
+            camera.position.y = ground;
+            velocity.y = 0;
+            canJump = true;
+        }
+    }
+
     renderer.render(scene, camera);
 }
-</script>
 
+</script>
 </body>
 </html>
