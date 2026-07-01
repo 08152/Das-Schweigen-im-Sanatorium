@@ -1,240 +1,221 @@
 <!DOCTYPE html>
-<html lang="de">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Offline FPS World</title>
-    <style>
-        body {
-            margin: 0;
-            overflow: hidden;
-            background-color: #000;
-        }
-        #hud {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            color: white;
-            font-family: Arial, sans-serif;
-            font-size: 18px;
-            text-shadow: 2px 2px 4px #000;
-            pointer-events: none;
-        }
-        #fadenkreuz {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 10px;
-            height: 10px;
-            background-color: rgba(255, 255, 255, 0.7);
-            border-radius: 50%;
-            transform: translate(-50%, -50%);
-            pointer-events: none;
-        }
-        #anleitung {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.5);
-            color: white;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            font-family: Arial, sans-serif;
-            cursor: pointer;
-        }
-    </style>
-    <!-- Import-Map für saubere Modul-Pfade (Up-to-date Version r128 / unpkg) -->
-    <script type="importmap">
-        {
-            "imports": {
-                "three": "https://unpkg.com"
-            }
-        }
-    </script>
+<meta charset="UTF-8">
+<title>FPS World Online</title>
+
+<style>
+body { margin:0; overflow:hidden; }
+
+#hud{
+position:absolute;
+top:15px;
+right:15px;
+color:white;
+font-family:Arial;
+font-size:14px;
+text-align:right;
+}
+</style>
 </head>
 
 <body>
 
-    <div id="hud">Punkte: <span id="score">0</span></div>
-    
-    <div id="fadenkreuz"></div>
+<div id="hud"></div>
 
-    <div id="anleitung">
-        <h1 style="font-size: 40px;">Klicken zum Spielen</h1>
-        <p>W, A, S, D = Bewegen<br>MAUS = Umsehen<br>KLICK = Pointer sperren / Schießen</p>
-    </div>
+<!-- THREE ONLINE -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.160/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160/examples/js/controls/PointerLockControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160/examples/js/loaders/GLTFLoader.js"></script>
 
-    <!-- Hauptspiel-Skript als Modul -->
-    <script type="module">
-        import * as THREE from 'three';
-        // PointerLockControls und GLTFLoader werden direkt aus dem offiziellen Three.js-Repository importiert
-        import { PointerLockControls } from 'https://unpkg.com';
-        import { GLTFLoader } from 'https://unpkg.com';
+<script>
 
-        // --- 1. Variablen deklarieren ---
-        let camera, scene, renderer, controls;
-        let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
-        let prevTime = performance.now();
-        const velocity = new THREE.Vector3();
-        const direction = new THREE.Vector3();
-        let score = 0;
+// ================= SCENE =================
 
-        const anleitung = document.getElementById('anleitung');
-        const scoreDisplay = document.getElementById('score');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87ceeb);
 
-        // --- 2. Initialisierung ---
-        init();
-        animate();
+const camera = new THREE.PerspectiveCamera(75,innerWidth/innerHeight,0.1,2000);
 
-        function init() {
-            // Szene & Kamera
-            scene = new THREE.Scene();
-            scene.background = new THREE.Color(0xa0a0a0);
-            scene.fog = new THREE.FogExp2(0xa0a0a0, 0.015);
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth,innerHeight);
+document.body.appendChild(renderer.domElement);
 
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1000);
-            camera.position.y = 10;
+renderer.shadowMap.enabled = true;
 
-            // Lichtquellen
-            const light = new THREE.HemisphereLight(0xffffff, 0x444444, 1.0);
-            light.position.set(0, 200, 0);
-            scene.add(light);
+// ================= LIGHT =================
 
-            const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
-            dirLight.position.set(0, 200, 100);
-            scene.add(dirLight);
+const sun = new THREE.DirectionalLight(0xffffff,1.5);
+sun.position.set(100,200,100);
+sun.castShadow = true;
+scene.add(sun);
 
-            // Steuerung (PointerLockControls)
-            controls = new PointerLockControls(camera, document.body);
+scene.add(new THREE.HemisphereLight(0xffffff,0x444444,1.2));
 
-            anleitung.addEventListener('click', () => {
-                controls.lock();
-            });
+// ================= CONTROLS =================
 
-            controls.addEventListener('lock', () => {
-                anleitung.style.display = 'none';
-            });
+const controls = new THREE.PointerLockControls(camera,document.body);
+document.body.onclick = ()=>controls.lock();
+scene.add(controls.getObject());
 
-            controls.addEventListener('unlock', () => {
-                anleitung.style.display = 'flex';
-            });
+// ================= GRAVITY + JUMP =================
 
-            scene.add(controls.getObject());
+let velocityY = 0;
+let canJump = false;
+const gravity = 0.015;
 
-            // Tastatur-Events registrieren
-            const onKeyDown = (event) => {
-                switch (event.code) {
-                    case 'KeyW': moveForward = true; break;
-                    case 'KeyA': moveLeft = true; break;
-                    case 'KeyS': moveBackward = true; break;
-                    case 'KeyD': moveRight = true; break;
-                }
-            };
+// ================= KEYBOARD =================
 
-            const onKeyUp = (event) => {
-                switch (event.code) {
-                    case 'KeyW': moveForward = false; break;
-                    case 'KeyA': moveLeft = false; break;
-                    case 'KeyS': moveBackward = false; break;
-                    case 'KeyD': moveRight = false; break;
-                }
-            };
+let keys={};
+onkeydown=e=>keys[e.code]=true;
+onkeyup=e=>keys[e.code]=false;
 
-            document.addEventListener('keydown', onKeyDown);
-            document.addEventListener('keyup', onKeyUp);
+// ================= TERRAIN =================
 
-            // Klick-Event zum Schießen / Interagieren
-            document.addEventListener('click', () => {
-                if (controls.isLocked) {
-                    // Beispiel-Logik für einen Treffer (Score erhöht sich)
-                    score += 10;
-                    scoreDisplay.innerText = score;
-                }
-            });
+const size = 100;
+let chunks = {};
 
-            // Der Boden (Grid)
-            const floorGeo = new THREE.PlaneGeometry(2000, 2000);
-            const floorMat = new THREE.MeshPhongMaterial({ color: 0x555555, depthWrite: true });
-            const floor = new THREE.Mesh(floorGeo, floorMat);
-            floor.rotation.x = -Math.PI / 2;
-            scene.add(floor);
+function height(x,z){
+return Math.sin(x*0.05)*4 + Math.cos(z*0.05)*4;
+}
 
-            const grid = new THREE.GridHelper(2000, 100, 0x000000, 0x000000);
-            grid.material.opacity = 0.2;
-            grid.material.transparent = true;
-            scene.add(grid);
+function createChunk(cx,cz){
 
-            // Beispiel-Objekte (Würfel als Hindernisse im FPS-Level)
-            const boxGeo = new THREE.BoxGeometry(20, 20, 20);
-            for (let i = 0; i < 50; i++) {
-                const boxMat = new THREE.MeshPhongMaterial({ color: Math.random() * 0xffffff });
-                const box = new THREE.Mesh(boxGeo, boxMat);
-                box.position.x = Math.floor(Math.random() * 20 - 10) * 20;
-                box.position.z = Math.floor(Math.random() * 20 - 10) * 20;
-                box.position.y = 10;
-                scene.add(box);
-            }
+const geo = new THREE.PlaneGeometry(size,size,30,30);
+geo.rotateX(-Math.PI/2);
 
-            // --- OPTIONAL: GLTFLoader Beispiel ---
-            // Wenn du eigene 3D-Modelle (.gltf / .glb) laden willst, entkommentiere diesen Block:
-            /*
-            const loader = new GLTFLoader();
-            loader.load('pfad/zu/deinem/modell.glb', (gltf) => {
-                const model = gltf.scene;
-                model.position.set(0, 0, -50);
-                scene.add(model);
-            }, undefined, (error) => {
-                console.error('Fehler beim Laden des Modells:', error);
-            });
-            */
+const pos = geo.attributes.position;
 
-            // WebGL Renderer initialisieren
-            renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setPixelRatio(window.devicePixelRatio);
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            document.body.appendChild(renderer.domElement);
+for(let i=0;i<pos.count;i++){
+let x = pos.getX(i)+cx*size;
+let z = pos.getZ(i)+cz*size;
+pos.setY(i,height(x,z));
+}
 
-            // Fenstergrößen-Änderung anpassen
-            window.addEventListener('resize', onWindowResize);
-        }
+geo.computeVertexNormals();
 
-        function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        }
+const mat = new THREE.MeshStandardMaterial({color:0x3f8f35});
 
-        // --- 3. Game-Loop ---
-        function animate() {
-            requestAnimationFrame(animate);
+const mesh = new THREE.Mesh(geo,mat);
+mesh.receiveShadow = true;
 
-            const time = performance.now();
+mesh.position.set(cx*size,0,cz*size);
 
-            if (controls.isLocked === true) {
-                const delta = (time - prevTime) / 1000;
+scene.add(mesh);
 
-                // Dämpfung / Reibung für flüssige Bewegungen
-                velocity.x -= velocity.x * 10.0 * delta;
-                velocity.z -= velocity.z * 10.0 * delta;
+chunks[cx+"_"+cz]=mesh;
 
-                direction.z = Number(moveForward) - Number(moveBackward);
-                direction.x = Number(moveRight) - Number(moveLeft);
-                direction.normalize(); // Garantiert gleichmäßige Geschwindigkeit in alle Richtungen
+// Bäume spawnen
+for(let i=0;i<6;i++){
+spawnTree(
+cx*size+(Math.random()-0.5)*size,
+cz*size+(Math.random()-0.5)*size
+);
+}
+}
 
-                // Geschwindigkeit anpassen
-                if (moveForward || moveBackward) velocity.z -= direction.z * 400.0 * delta;
-                if (moveLeft || moveRight) velocity.x -= direction.x * 400.0 * delta;
+function updateChunks(){
 
-                // Spieler im Raum bewegen
-                controls.moveRight(-velocity.x * delta);
-                controls.moveForward(-velocity.z * delta);
-            }
+const cx = Math.floor(camera.position.x/size);
+const cz = Math.floor(camera.position.z/size);
 
-            prevTime = time;
-            renderer.render(scene, camera);
-        }
-    </script>
+for(let x=-2;x<=2;x++){
+for(let z=-2;z<=2;z++){
+
+let id=(cx+x)+"_"+(cz+z);
+
+if(!chunks[id]){
+createChunk(cx+x,cz+z);
+}
+
+}}
+}
+
+// ================= TREES =================
+
+let treeModel = null;
+
+const loader = new THREE.GLTFLoader();
+
+loader.load("baum.glb",g=>{
+treeModel = g.scene;
+
+treeModel.traverse(o=>{
+if(o.isMesh){
+o.castShadow = true;
+o.receiveShadow = true;
+}
+});
+
+console.log("Baum geladen");
+});
+
+function spawnTree(x,z){
+if(!treeModel) return;
+
+let t = treeModel.clone();
+t.position.set(x,height(x,z),z);
+t.scale.set(2,2,2);
+scene.add(t);
+}
+
+// ================= MOVEMENT =================
+
+function move(){
+
+let speed = 0.6;
+
+if(keys.KeyW)controls.moveForward(speed);
+if(keys.KeyS)controls.moveForward(-speed);
+if(keys.KeyA)controls.moveRight(-speed);
+if(keys.KeyD)controls.moveRight(speed);
+
+// Jump + Gravity
+if(keys.Space && canJump){
+velocityY = 0.25;
+canJump = false;
+}
+
+camera.position.y -= velocityY;
+velocityY -= gravity;
+
+if(camera.position.y < height(camera.position.x,camera.position.z)+8){
+camera.position.y = height(camera.position.x,camera.position.z)+8;
+velocityY = 0;
+canJump = true;
+}
+}
+
+// ================= HUD =================
+
+function hud(){
+document.getElementById("hud").innerHTML=
+`X: ${camera.position.x.toFixed(0)}<br>
+Y: ${camera.position.y.toFixed(0)}<br>
+Z: ${camera.position.z.toFixed(0)}`;
+}
+
+// ================= LOOP =================
+
+function animate(){
+requestAnimationFrame(animate);
+
+updateChunks();
+move();
+hud();
+
+renderer.render(scene,camera);
+}
+
+animate();
+
+window.onresize=()=>{
+camera.aspect=innerWidth/innerHeight;
+camera.updateProjectionMatrix();
+renderer.setSize(innerWidth,innerHeight);
+};
+
+</script>
+
 </body>
 </html>
