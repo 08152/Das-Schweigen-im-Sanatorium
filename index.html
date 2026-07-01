@@ -1,234 +1,185 @@
 <!DOCTYPE html>
-<html>
+<html lang="de">
 <head>
 <meta charset="UTF-8">
-<title>FPS World</title>
+<title>Infinite Chunk FPS World</title>
 
 <style>
-body { margin:0; overflow:hidden; }
+body { margin:0; overflow:hidden; background:black; }
 
-#hud{
-position:absolute;
-top:10px;
-right:10px;
-color:white;
-font-family:Arial;
-font-size:14px;
-text-align:right;
+#overlay {
+    position:absolute;
+    width:100%; height:100%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:rgba(0,0,0,0.6);
+    color:white;
+    font-family:Arial;
+    font-size:20px;
+    cursor:pointer;
 }
 </style>
 </head>
 
 <body>
 
-<div id="hud"></div>
+<div id="overlay">Klicken zum Start (Pointer Lock)</div>
 
-<!-- THREE.JS -->
-<script src="https://cdn.jsdelivr.net/npm/three@0.160/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.160/examples/js/controls/PointerLockControls.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.160/examples/js/loaders/GLTFLoader.js"></script>
+<script type="module">
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
 
-<script>
+let scene, camera, renderer;
+let move = { forward:false, back:false, left:false, right:false };
 
-// ================= SCENE =================
-
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87ceeb);
-
-// LIGHT (FIX: nicht mehr schwarz)
-const sun = new THREE.DirectionalLight(0xffffff, 1.2);
-sun.position.set(100,200,100);
-scene.add(sun);
-
-const ambient = new THREE.AmbientLight(0xffffff, 0.6);
-scene.add(ambient);
-
-// ================= CAMERA =================
-
-const camera = new THREE.PerspectiveCamera(
-75, innerWidth/innerHeight, 0.1, 2000
-);
-camera.position.y = 10;
-
-// ================= RENDERER =================
-
-const renderer = new THREE.WebGLRenderer({antialias:true});
-renderer.setSize(innerWidth,innerHeight);
-document.body.appendChild(renderer.domElement);
-
-// ================= CONTROLS =================
-
-const controls = new THREE.PointerLockControls(camera,document.body);
-document.body.onclick = ()=>controls.lock();
-scene.add(controls.getObject());
-
-// ================= GRAVITY =================
-
-let velocityY = 0;
-let canJump = false;
-const gravity = 0.02;
-
-// ================= INPUT =================
-
-let keys={};
-onkeydown=e=>keys[e.code]=true;
-onkeyup=e=>keys[e.code]=false;
-
-// ================= TERRAIN =================
-
-const size = 100;
 let chunks = {};
+const CHUNK_SIZE = 50;
+const RENDER_DISTANCE = 3; // wie viele chunks um dich herum
 
-function height(x,z){
-return Math.sin(x*0.05)*4 + Math.cos(z*0.05)*4;
-}
-
-function createChunk(cx,cz){
-
-const geo = new THREE.PlaneGeometry(size,size,30,30);
-geo.rotateX(-Math.PI/2);
-
-const pos = geo.attributes.position;
-
-for(let i=0;i<pos.count;i++){
-let x = pos.getX(i)+cx*size;
-let z = pos.getZ(i)+cz*size;
-pos.setY(i,height(x,z));
-}
-
-geo.computeVertexNormals();
-
-const mat = new THREE.MeshStandardMaterial({
-color:0x3f8f35,
-roughness:1
-});
-
-const mesh = new THREE.Mesh(geo,mat);
-mesh.receiveShadow = true;
-mesh.position.set(cx*size,0,cz*size);
-
-scene.add(mesh);
-
-chunks[cx+"_"+cz]=mesh;
-
-// Bäume verzögert spawn (FIX gegen GLB Lag)
-setTimeout(()=>{
-for(let i=0;i<6;i++){
-spawnTree(
-cx*size+(Math.random()-0.5)*size,
-cz*size+(Math.random()-0.5)*size
-);
-}
-},200);
-}
-
-// ================= CHUNKS =================
-
-function updateChunks(){
-
-const cx = Math.floor(camera.position.x/size);
-const cz = Math.floor(camera.position.z/size);
-
-for(let x=-2;x<=2;x++){
-for(let z=-2;z<=2;z++){
-
-let id=(cx+x)+"_"+(cz+z);
-
-if(!chunks[id]){
-createChunk(cx+x,cz+z);
-}
-
-}}
-}
-
-// ================= TREE =================
-
-let treeModel = null;
-
-const loader = new THREE.GLTFLoader();
-
-loader.load("baum.glb",g=>{
-treeModel = g.scene;
-
-treeModel.traverse(o=>{
-if(o.isMesh){
-o.castShadow = true;
-o.receiveShadow = true;
-}
-});
-
-console.log("Baum geladen");
-});
-
-function spawnTree(x,z){
-if(!treeModel) return;
-
-let t = treeModel.clone();
-t.position.set(x,height(x,z),z);
-t.scale.set(2,2,2);
-scene.add(t);
-}
-
-// ================= MOVE =================
-
-function move(){
-
-let speed = 0.6;
-
-if(keys.KeyW)controls.moveForward(speed);
-if(keys.KeyS)controls.moveForward(-speed);
-if(keys.KeyA)controls.moveRight(-speed);
-if(keys.KeyD)controls.moveRight(speed);
-
-// Jump
-if(keys.Space && canJump){
-velocityY = 0.3;
-canJump = false;
-}
-
-camera.position.y -= velocityY;
-velocityY -= gravity;
-
-let ground = height(camera.position.x,camera.position.z) + 8;
-
-if(camera.position.y < ground){
-camera.position.y = ground;
-velocityY = 0;
-canJump = true;
-}
-}
-
-// ================= HUD =================
-
-function hud(){
-document.getElementById("hud").innerHTML=
-`X: ${camera.position.x.toFixed(0)}<br>
-Y: ${camera.position.y.toFixed(0)}<br>
-Z: ${camera.position.z.toFixed(0)}`;
-}
-
-// ================= LOOP =================
-
-function animate(){
-requestAnimationFrame(animate);
-
-updateChunks();
-move();
-hud();
-
-renderer.render(scene,camera);
-}
-
+init();
 animate();
 
-// ================= RESIZE =================
+function init(){
 
-window.onresize=()=>{
-camera.aspect=innerWidth/innerHeight;
-camera.updateProjectionMatrix();
-renderer.setSize(innerWidth,innerHeight);
-};
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x87c95c); // grüner Himmel
 
+    camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 2000);
+    camera.position.set(0, 5, 0);
+
+    renderer = new THREE.WebGLRenderer({antialias:true});
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1));
+
+    // Pointer Lock
+    const overlay = document.getElementById("overlay");
+    overlay.onclick = () => document.body.requestPointerLock();
+
+    document.addEventListener("pointerlockchange", ()=>{
+        overlay.style.display = document.pointerLockElement ? "none" : "flex";
+    });
+
+    // Maus Look
+    let pitch = 0;
+    let yaw = 0;
+
+    document.addEventListener("mousemove",(e)=>{
+        if(!document.pointerLockElement) return;
+
+        yaw -= e.movementX * 0.002;
+        pitch -= e.movementY * 0.002;
+
+        pitch = Math.max(-1.5, Math.min(1.5, pitch));
+
+        camera.rotation.x = pitch;
+        camera.rotation.y = yaw;
+    });
+
+    // WASD
+    document.addEventListener("keydown",(e)=>{
+        if(e.code==="KeyW") move.forward=true;
+        if(e.code==="KeyS") move.back=true;
+        if(e.code==="KeyA") move.left=true;
+        if(e.code==="KeyD") move.right=true;
+    });
+
+    document.addEventListener("keyup",(e)=>{
+        if(e.code==="KeyW") move.forward=false;
+        if(e.code==="KeyS") move.back=false;
+        if(e.code==="KeyA") move.left=false;
+        if(e.code==="KeyD") move.right=false;
+    });
+
+    window.addEventListener("resize", ()=>{
+        camera.aspect = window.innerWidth/window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+}
+
+// ===== CHUNK ERZEUGUNG =====
+function createChunk(cx, cz){
+
+    const key = cx + "," + cz;
+
+    if(chunks[key]) return;
+
+    const group = new THREE.Group();
+
+    const geo = new THREE.BoxGeometry(5, 1, 5);
+
+    for(let x=0;x<10;x++){
+        for(let z=0;z<10;z++){
+
+            let worldX = cx * CHUNK_SIZE + x * 5;
+            let worldZ = cz * CHUNK_SIZE + z * 5;
+
+            const height = Math.sin(worldX * 0.05) * Math.cos(worldZ * 0.05) * 2;
+
+            const mat = new THREE.MeshStandardMaterial({
+                color: 0x2ecc71
+            });
+
+            const block = new THREE.Mesh(geo, mat);
+            block.position.set(worldX, height, worldZ);
+
+            group.add(block);
+        }
+    }
+
+    scene.add(group);
+    chunks[key] = group;
+}
+
+// ===== CHUNK UPDATE =====
+function updateChunks(){
+
+    const cx = Math.floor(camera.position.x / CHUNK_SIZE);
+    const cz = Math.floor(camera.position.z / CHUNK_SIZE);
+
+    for(let x = cx-RENDER_DISTANCE; x <= cx+RENDER_DISTANCE; x++){
+        for(let z = cz-RENDER_DISTANCE; z <= cz+RENDER_DISTANCE; z++){
+            createChunk(x, z);
+        }
+    }
+}
+
+// ===== LOOP =====
+function animate(){
+    requestAnimationFrame(animate);
+
+    updateChunks();
+
+    const speed = 0.4;
+
+    let direction = new THREE.Vector3();
+
+    if(move.forward) direction.z -= 1;
+    if(move.back) direction.z += 1;
+    if(move.left) direction.x -= 1;
+    if(move.right) direction.x += 1;
+
+    direction.normalize();
+
+    let forward = new THREE.Vector3();
+    camera.getWorldDirection(forward);
+    forward.y = 0;
+    forward.normalize();
+
+    let right = new THREE.Vector3();
+    right.crossVectors(camera.up, forward).normalize();
+
+    let moveVec = new THREE.Vector3();
+    moveVec.addScaledVector(forward, -direction.z);
+    moveVec.addScaledVector(right, direction.x);
+    moveVec.multiplyScalar(speed);
+
+    camera.position.add(moveVec);
+
+    renderer.render(scene, camera);
+}
 </script>
 
 </body>
