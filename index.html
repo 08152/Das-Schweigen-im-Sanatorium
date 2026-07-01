@@ -1,520 +1,240 @@
 <!DOCTYPE html>
-<html>
+<html lang="de">
 <head>
-
-<meta charset="UTF-8">
-<title>Infinite FPS World</title>
-
-<style>
-
-body{
-margin:0;
-overflow:hidden;
-}
-
-#hud{
-position:absolute;
-top:20px;
-right:20px;
-color:white;
-font-family:Arial;
-font-size:18px;
-}
-
-</style>
-
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Offline FPS World</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+        }
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-family: Arial, sans-serif;
+            font-size: 18px;
+            text-shadow: 2px 2px 4px #000;
+            pointer-events: none;
+        }
+        #fadenkreuz {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 10px;
+            height: 10px;
+            background-color: rgba(255, 255, 255, 0.7);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+        #anleitung {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-family: Arial, sans-serif;
+            cursor: pointer;
+        }
+    </style>
+    <!-- Import-Map für saubere Modul-Pfade (Up-to-date Version r128 / unpkg) -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com"
+            }
+        }
+    </script>
 </head>
-
 
 <body>
 
-
-<div id="hud"></div>
-
-
-
-<script src="https://cdn.jsdelivr.net/npm/three@0.160/build/three.min.js"></script>
-
-<script src="https://cdn.jsdelivr.net/npm/three@0.160/examples/js/controls/PointerLockControls.js"></script>
-
-<script src="https://cdn.jsdelivr.net/npm/three@0.160/examples/js/loaders/GLTFLoader.js"></script>
-
-
-
-<script>
-
-
-// Szene
-
-const scene =
-new THREE.Scene();
-
-
-scene.background =
-new THREE.Color(0x87ceeb);
-
-
-
-// Kamera
-
-const camera =
-new THREE.PerspectiveCamera(
-75,
-innerWidth/innerHeight,
-0.1,
-2000
-);
-
-
-
-// Renderer
-
-const renderer =
-new THREE.WebGLRenderer({
-antialias:true
-});
-
-
-renderer.setSize(
-innerWidth,
-innerHeight
-);
-
-
-renderer.shadowMap.enabled=true;
-
-
-document.body.appendChild(
-renderer.domElement
-);
-
-
-
-// Licht
-
-const sun =
-new THREE.DirectionalLight(
-0xffffff,
-5
-);
-
-
-sun.position.set(
-50,
-100,
-20
-);
-
-
-sun.castShadow=true;
-
-
-scene.add(sun);
-
-
-
-scene.add(
-new THREE.AmbientLight(
-0xffffff,
-2
-)
-);
-
-
-
-// FPS
-
-const controls =
-new THREE.PointerLockControls(
-camera,
-document.body
-);
-
-
-document.body.onclick=()=>{
-
-controls.lock();
-
-};
-
-
-scene.add(
-controls.getObject()
-);
-
-
-
-camera.position.y=8;
-
-
-
-
-
-// =================
-// Terrain Chunks
-// =================
-
-
-const size=100;
-
-
-let chunks={};
-
-
-
-function terrainHeight(x,z){
-
-return (
-
-Math.sin(x*0.05)*4+
-
-Math.cos(z*0.04)*4
-
-);
-
-}
-
-
-
-
-
-function createChunk(cx,cz){
-
-
-
-let geo =
-new THREE.PlaneGeometry(
-size,
-size,
-40,
-40
-);
-
-
-
-geo.rotateX(
--Math.PI/2
-);
-
-
-
-let p =
-geo.attributes.position;
-
-
-
-for(
-let i=0;i<p.count;i++
-){
-
-
-let x =
-p.getX(i)+cx*size;
-
-
-let z =
-p.getZ(i)+cz*size;
-
-
-
-p.setY(
-i,
-terrainHeight(x,z)
-);
-
-
-}
-
-
-
-geo.computeVertexNormals();
-
-
-
-let mat =
-new THREE.MeshStandardMaterial({
-
-color:0x4b8b35
-
-});
-
-
-
-let mesh =
-new THREE.Mesh(
-geo,
-mat
-);
-
-
-
-mesh.position.set(
-cx*size,
-0,
-cz*size
-);
-
-
-
-scene.add(mesh);
-
-
-
-chunks[cx+"_"+cz]=mesh;
-
-
-
-}
-
-
-
-
-
-function updateChunks(){
-
-
-
-let cx =
-Math.floor(
-camera.position.x/size
-);
-
-
-let cz =
-Math.floor(
-camera.position.z/size
-);
-
-
-
-for(
-let x=-2;x<=2;x++
-){
-
-for(
-let z=-2;z<=2;z++
-){
-
-
-let id =
-(cx+x)+"_"+(cz+z);
-
-
-
-if(!chunks[id]){
-
-createChunk(
-cx+x,
-cz+z
-);
-
-}
-
-
-}
-
-}
-
-
-}
-
-
-
-
-
-
-// =================
-// Baum nur einmal laden
-// =================
-
-
-let tree=null;
-
-
-
-const loader =
-new THREE.GLTFLoader();
-
-
-
-loader.load(
-"baum.glb",
-
-g=>{
-
-
-tree=g.scene;
-
-
-tree.traverse(
-o=>{
-
-if(o.isMesh)
-o.castShadow=true;
-
-});
-
-
-console.log(
-"Baum geladen"
-);
-
-
-}
-
-);
-
-
-
-
-
-
-function spawnTree(x,z){
-
-
-if(!tree)return;
-
-
-
-let t =
-tree.clone();
-
-
-
-t.position.set(
-x,
-terrainHeight(x,z),
-z
-);
-
-
-
-scene.add(t);
-
-
-
-}
-
-
-
-
-// =================
-// Bewegung
-// =================
-
-
-let keys={};
-
-
-
-onkeydown=e=>
-keys[e.code]=true;
-
-
-onkeyup=e=>
-keys[e.code]=false;
-
-
-
-function move(){
-
-
-
-let speed=0.3;
-
-
-
-if(keys.W)
-controls.moveForward(speed);
-
-
-if(keys.S)
-controls.moveForward(-speed);
-
-
-if(keys.A)
-controls.moveRight(-speed);
-
-
-if(keys.D)
-controls.moveRight(speed);
-
-
-
-}
-
-
-
-
-
-// Loop
-
-
-function animate(){
-
-
-requestAnimationFrame(
-animate
-);
-
-
-
-updateChunks();
-
-
-move();
-
-
-
-document.getElementById("hud").innerHTML=
-
-`
-X: ${camera.position.x.toFixed(0)}
-<br>
-Y: ${camera.position.y.toFixed(0)}
-<br>
-Z: ${camera.position.z.toFixed(0)}
-`;
-
-
-
-renderer.render(
-scene,
-camera
-);
-
-
-
-}
-
-
-animate();
-
-
-
-
-
-window.onresize=()=>{
-
-camera.aspect=
-innerWidth/innerHeight;
-
-
-camera.updateProjectionMatrix();
-
-
-renderer.setSize(
-innerWidth,
-innerHeight
-);
-
-
-};
-
-
-
-</script>
-
-
+    <div id="hud">Punkte: <span id="score">0</span></div>
+    
+    <div id="fadenkreuz"></div>
+
+    <div id="anleitung">
+        <h1 style="font-size: 40px;">Klicken zum Spielen</h1>
+        <p>W, A, S, D = Bewegen<br>MAUS = Umsehen<br>KLICK = Pointer sperren / Schießen</p>
+    </div>
+
+    <!-- Hauptspiel-Skript als Modul -->
+    <script type="module">
+        import * as THREE from 'three';
+        // PointerLockControls und GLTFLoader werden direkt aus dem offiziellen Three.js-Repository importiert
+        import { PointerLockControls } from 'https://unpkg.com';
+        import { GLTFLoader } from 'https://unpkg.com';
+
+        // --- 1. Variablen deklarieren ---
+        let camera, scene, renderer, controls;
+        let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
+        let prevTime = performance.now();
+        const velocity = new THREE.Vector3();
+        const direction = new THREE.Vector3();
+        let score = 0;
+
+        const anleitung = document.getElementById('anleitung');
+        const scoreDisplay = document.getElementById('score');
+
+        // --- 2. Initialisierung ---
+        init();
+        animate();
+
+        function init() {
+            // Szene & Kamera
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xa0a0a0);
+            scene.fog = new THREE.FogExp2(0xa0a0a0, 0.015);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1000);
+            camera.position.y = 10;
+
+            // Lichtquellen
+            const light = new THREE.HemisphereLight(0xffffff, 0x444444, 1.0);
+            light.position.set(0, 200, 0);
+            scene.add(light);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
+            dirLight.position.set(0, 200, 100);
+            scene.add(dirLight);
+
+            // Steuerung (PointerLockControls)
+            controls = new PointerLockControls(camera, document.body);
+
+            anleitung.addEventListener('click', () => {
+                controls.lock();
+            });
+
+            controls.addEventListener('lock', () => {
+                anleitung.style.display = 'none';
+            });
+
+            controls.addEventListener('unlock', () => {
+                anleitung.style.display = 'flex';
+            });
+
+            scene.add(controls.getObject());
+
+            // Tastatur-Events registrieren
+            const onKeyDown = (event) => {
+                switch (event.code) {
+                    case 'KeyW': moveForward = true; break;
+                    case 'KeyA': moveLeft = true; break;
+                    case 'KeyS': moveBackward = true; break;
+                    case 'KeyD': moveRight = true; break;
+                }
+            };
+
+            const onKeyUp = (event) => {
+                switch (event.code) {
+                    case 'KeyW': moveForward = false; break;
+                    case 'KeyA': moveLeft = false; break;
+                    case 'KeyS': moveBackward = false; break;
+                    case 'KeyD': moveRight = false; break;
+                }
+            };
+
+            document.addEventListener('keydown', onKeyDown);
+            document.addEventListener('keyup', onKeyUp);
+
+            // Klick-Event zum Schießen / Interagieren
+            document.addEventListener('click', () => {
+                if (controls.isLocked) {
+                    // Beispiel-Logik für einen Treffer (Score erhöht sich)
+                    score += 10;
+                    scoreDisplay.innerText = score;
+                }
+            });
+
+            // Der Boden (Grid)
+            const floorGeo = new THREE.PlaneGeometry(2000, 2000);
+            const floorMat = new THREE.MeshPhongMaterial({ color: 0x555555, depthWrite: true });
+            const floor = new THREE.Mesh(floorGeo, floorMat);
+            floor.rotation.x = -Math.PI / 2;
+            scene.add(floor);
+
+            const grid = new THREE.GridHelper(2000, 100, 0x000000, 0x000000);
+            grid.material.opacity = 0.2;
+            grid.material.transparent = true;
+            scene.add(grid);
+
+            // Beispiel-Objekte (Würfel als Hindernisse im FPS-Level)
+            const boxGeo = new THREE.BoxGeometry(20, 20, 20);
+            for (let i = 0; i < 50; i++) {
+                const boxMat = new THREE.MeshPhongMaterial({ color: Math.random() * 0xffffff });
+                const box = new THREE.Mesh(boxGeo, boxMat);
+                box.position.x = Math.floor(Math.random() * 20 - 10) * 20;
+                box.position.z = Math.floor(Math.random() * 20 - 10) * 20;
+                box.position.y = 10;
+                scene.add(box);
+            }
+
+            // --- OPTIONAL: GLTFLoader Beispiel ---
+            // Wenn du eigene 3D-Modelle (.gltf / .glb) laden willst, entkommentiere diesen Block:
+            /*
+            const loader = new GLTFLoader();
+            loader.load('pfad/zu/deinem/modell.glb', (gltf) => {
+                const model = gltf.scene;
+                model.position.set(0, 0, -50);
+                scene.add(model);
+            }, undefined, (error) => {
+                console.error('Fehler beim Laden des Modells:', error);
+            });
+            */
+
+            // WebGL Renderer initialisieren
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            // Fenstergrößen-Änderung anpassen
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // --- 3. Game-Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const time = performance.now();
+
+            if (controls.isLocked === true) {
+                const delta = (time - prevTime) / 1000;
+
+                // Dämpfung / Reibung für flüssige Bewegungen
+                velocity.x -= velocity.x * 10.0 * delta;
+                velocity.z -= velocity.z * 10.0 * delta;
+
+                direction.z = Number(moveForward) - Number(moveBackward);
+                direction.x = Number(moveRight) - Number(moveLeft);
+                direction.normalize(); // Garantiert gleichmäßige Geschwindigkeit in alle Richtungen
+
+                // Geschwindigkeit anpassen
+                if (moveForward || moveBackward) velocity.z -= direction.z * 400.0 * delta;
+                if (moveLeft || moveRight) velocity.x -= direction.x * 400.0 * delta;
+
+                // Spieler im Raum bewegen
+                controls.moveRight(-velocity.x * delta);
+                controls.moveForward(-velocity.z * delta);
+            }
+
+            prevTime = time;
+            renderer.render(scene, camera);
+        }
+    </script>
 </body>
 </html>
