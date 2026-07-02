@@ -2,333 +2,59 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<title>FPS World Debug GLB</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Infinite FPS World</title>
 
 <style>
-body { margin:0; overflow:hidden; }
-canvas { display:block; }
+html,body{
+    margin:0;
+    overflow:hidden;
+    background:#4aa3ff;
+}
+
+canvas{
+    display:block;
+}
 
 #overlay{
-position:absolute;
-width:100%;
-height:100%;
-display:flex;
-align-items:center;
-justify-content:center;
-background:rgba(0,0,0,0.5);
-color:white;
-font-family:Arial;
-font-size:22px;
-cursor:pointer;
-z-index:5;
+    position:absolute;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:rgba(0,0,0,.5);
+    color:white;
+    font-family:Arial,sans-serif;
+    font-size:28px;
+    cursor:pointer;
+    z-index:10;
 }
 
-#log{
-position:absolute;
-top:10px;
-left:10px;
-color:white;
-background:rgba(0,0,0,0.6);
-padding:10px;
-font-family:monospace;
-z-index:10;
-max-width:90%;
+#hud{
+    position:absolute;
+    top:10px;
+    right:10px;
+    color:white;
+    font-family:Arial;
+    background:rgba(0,0,0,.35);
+    padding:10px;
+    border-radius:8px;
+    z-index:5;
 }
 </style>
-</head>
 
+</head>
 <body>
 
-<div id="log">LOG START<br></div>
 <div id="overlay">Klicken zum Start</div>
 
-<script type="module">
-
-import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
-import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js";
-
-/* ---------------- LOG SYSTEM ---------------- */
-
-function log(msg){
-  const el = document.getElementById("log");
-  el.innerHTML += "<br>" + msg;
-}
-
-/* ---------------- CORE ---------------- */
-
-let scene, camera, renderer;
-
-let move = { forward:false, back:false, left:false, right:false };
-let velocity = new THREE.Vector3();
-let canJump = false;
-
-const GRAVITY = 0.015;
-const JUMP = 0.35;
-
-const SIZE = 80;
-const RENDER = 2;
-
-let chunks = {};
-let treeChunks = {};
-let treeModel = null;
-
-/* ---------------- GLB LOADER ---------------- */
-
-const loader = new GLTFLoader();
-
-function loadGLB(url, callback){
-
-log("Lade GLB: " + url);
-
-loader.load(
-url,
-(gltf)=>{
-log("GLB geladen!");
-callback(gltf.scene);
-},
-undefined,
-(err)=>{
-log("❌ GLB FEHLER: " + err);
-}
-);
-
-}
-
-/* ---------------- INIT ---------------- */
-
-init();
-animate();
-
-function init(){
-
-scene = new THREE.Scene();
-scene.background = new THREE.Color(0x4aa3ff);
-
-/* CAMERA */
-camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 2000);
-camera.position.set(0, 30, 0);
-
-/* RENDERER */
-renderer = new THREE.WebGLRenderer({ antialias:true });
-renderer.setSize(innerWidth, innerHeight);
-renderer.setPixelRatio(devicePixelRatio);
-document.body.appendChild(renderer.domElement);
-
-/* LIGHT */
-scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.2));
-
-let sun = new THREE.DirectionalLight(0xffffff, 2);
-sun.position.set(50,100,50);
-scene.add(sun);
-
-scene.add(new THREE.AmbientLight(0xffffff, 0.3));
-
-/* GLB */
-loadGLB("./baum.glb", (model)=>{
-treeModel = model;
-log("🌲 Baum aktiv!");
-});
-
-/* POINTER LOCK */
-const overlay = document.getElementById("overlay");
-
-overlay.onclick = ()=>{
-renderer.domElement.requestPointerLock();
-};
-
-document.addEventListener("pointerlockchange", ()=>{
-overlay.style.display = document.pointerLockElement ? "none" : "flex";
-});
-
-/* MOUSE */
-let pitch = 0;
-let yaw = 0;
-
-document.addEventListener("mousemove", (e)=>{
-if(!document.pointerLockElement) return;
-
-yaw -= e.movementX * 0.002;
-pitch -= e.movementY * 0.002;
-
-pitch = Math.max(-1.5, Math.min(1.5, pitch));
-
-camera.rotation.x = pitch;
-camera.rotation.y = yaw;
-});
-
-/* KEYBOARD */
-document.addEventListener("keydown", (e)=>{
-
-if(e.code==="KeyW") move.forward = true;
-if(e.code==="KeyS") move.back = true;
-if(e.code==="KeyA") move.left = true;
-if(e.code==="KeyD") move.right = true;
-
-if(e.code==="Space" && canJump){
-velocity.y = JUMP;
-canJump = false;
-}
-
-});
-
-document.addEventListener("keyup", (e)=>{
-
-if(e.code==="KeyW") move.forward = false;
-if(e.code==="KeyS") move.back = false;
-if(e.code==="KeyA") move.left = false;
-if(e.code==="KeyD") move.right = false;
-
-});
-
-window.onresize = ()=>{
-camera.aspect = innerWidth/innerHeight;
-camera.updateProjectionMatrix();
-renderer.setSize(innerWidth, innerHeight);
-};
-
-}
-
-/* ---------------- TERRAIN ---------------- */
-
-function height(x,z){
-return (
-Math.sin(x*0.02)*2 +
-Math.cos(z*0.02)*2 +
-Math.sin((x+z)*0.01)*3
-);
-}
-
-/* ---------------- CHUNKS ---------------- */
-
-function createChunk(cx,cz){
-
-let key = cx+","+cz;
-if(chunks[key]) return;
-
-let geo = new THREE.PlaneGeometry(SIZE,SIZE,40,40);
-geo.rotateX(-Math.PI/2);
-
-let pos = geo.attributes.position;
-
-for(let i=0;i<pos.count;i++){
-
-let x = pos.getX(i) + cx*SIZE;
-let z = pos.getZ(i) + cz*SIZE;
-
-pos.setY(i, height(x,z));
-}
-
-geo.computeVertexNormals();
-
-let mat = new THREE.MeshStandardMaterial({
-color:0x229922,
-roughness:0.9
-});
-
-let terrain = new THREE.Mesh(geo, mat);
-terrain.position.set(cx*SIZE, 0, cz*SIZE);
-
-scene.add(terrain);
-chunks[key] = terrain;
-
-spawnTrees(cx,cz);
-}
-
-/* ---------------- TREES ---------------- */
-
-function spawnTrees(cx,cz){
-
-if(!treeModel) return;
-
-let key = cx+","+cz;
-if(treeChunks[key]) return;
-
-treeChunks[key] = true;
-
-for(let i=0;i<5;i++){
-
-let tree = treeModel.clone();
-
-let x = cx*SIZE + (Math.random()-0.5)*SIZE;
-let z = cz*SIZE + (Math.random()-0.5)*SIZE;
-let y = height(x,z);
-
-tree.position.set(x,y,z);
-tree.scale.set(2,2,2);
-
-scene.add(tree);
-
-}
-
-}
-
-/* ---------------- CHUNKS ---------------- */
-
-function updateChunks(){
-
-let cx = Math.floor(camera.position.x / SIZE);
-let cz = Math.floor(camera.position.z / SIZE);
-
-for(let x=cx-RENDER;x<=cx+RENDER;x++){
-for(let z=cz-RENDER;z<=cz+RENDER;z++){
-createChunk(x,z);
-}
-}
-
-}
-
-/* ---------------- LOOP ---------------- */
-
-function animate(){
-
-requestAnimationFrame(animate);
-
-updateChunks();
-
-/* MOVEMENT */
-let dir = new THREE.Vector3();
-
-if(move.forward) dir.z -= 1;
-if(move.back) dir.z += 1;
-if(move.left) dir.x -= 1;
-if(move.right) dir.x += 1;
-
-dir.normalize();
-
-let forward = new THREE.Vector3();
-camera.getWorldDirection(forward);
-forward.y = 0;
-forward.normalize();
-
-let right = new THREE.Vector3();
-right.crossVectors(camera.up, forward).normalize();
-
-let moveVec = new THREE.Vector3();
-
-moveVec.addScaledVector(forward, -dir.z);
-moveVec.addScaledVector(right, dir.x);
-moveVec.multiplyScalar(0.25);
-
-camera.position.add(moveVec);
-
-/* GRAVITY */
-velocity.y -= GRAVITY;
-camera.position.y += velocity.y;
-
-/* GROUND */
-let ground = height(camera.position.x, camera.position.z) + 2;
-
-if(camera.position.y < ground){
-camera.position.y = ground;
-velocity.y = 0;
-canJump = true;
-}
-
-renderer.render(scene,camera);
-
-}
-
-</script>
+<div id="hud">
+X: 0<br>
+Y: 0<br>
+Z: 0
+</div>
+
+<script type="module" src="./main.js"></script>
 
 </body>
 </html>
