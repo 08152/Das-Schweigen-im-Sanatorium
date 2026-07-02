@@ -2,57 +2,40 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Infinite FPS World</title>
+<title>FPS World</title>
 
 <style>
-html,body{
-    margin:0;
-    overflow:hidden;
-    background:#4aa3ff;
-}
-
-canvas{
-    display:block;
-}
+body { margin:0; overflow:hidden; }
+canvas { display:block; }
 
 #overlay{
-    position:absolute;
-    inset:0;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    background:rgba(0,0,0,.5);
-    color:white;
-    font-family:Arial,sans-serif;
-    font-size:28px;
-    cursor:pointer;
-    z-index:10;
+position:absolute;
+inset:0;
+display:flex;
+align-items:center;
+justify-content:center;
+background:rgba(0,0,0,0.5);
+color:white;
+font-family:Arial;
+font-size:24px;
+cursor:pointer;
 }
 
 #hud{
-    position:absolute;
-    top:10px;
-    right:10px;
-    color:white;
-    font-family:Arial;
-    background:rgba(0,0,0,.35);
-    padding:10px;
-    border-radius:8px;
-    z-index:5;
+position:absolute;
+top:10px;
+right:10px;
+color:white;
+font-family:Arial;
+background:rgba(0,0,0,0.4);
+padding:10px;
 }
 </style>
-
 </head>
 <body>
 
 <div id="overlay">Klicken zum Start</div>
-
-<div id="hud">
-X: 0<br>
-Y: 0<br>
-Z: 0
-</div>
+<div id="hud"></div>
 
 <script type="module" src="./main.js"></script>
 
